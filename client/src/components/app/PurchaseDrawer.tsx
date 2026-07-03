@@ -11,7 +11,7 @@
  *
  * Callable Functions: ordersInitCheckout / userUpdateProfile / EmbeddedCheckout を廃止
  */
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, LogIn, CheckCircle2 } from "lucide-react";
@@ -22,17 +22,10 @@ import {
   where,
   orderBy,
   limit,
-  addDoc,
-  doc,
-  getDoc,
-  updateDoc,
-  onSnapshot,
-  serverTimestamp,
 } from "firebase/firestore";
-import { getFirebaseDb, getFirebaseAuth } from "@/lib/firebase";
+import { getFirebaseDb } from "@/lib/firebase";
 import { safeUrl } from "@/lib/utils";
 import { useFirestoreCollection } from "@/hooks/useFirestoreCollection";
-import { useCallableMutation, CALLABLE } from "@/lib/callable";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { NATIONALITIES } from "@shared/const";
@@ -44,6 +37,8 @@ import {
   labelStyle,
   bodyStyle,
 } from "./types";
+import { useCurrency } from "./purchase-drawer/useCurrency";
+import { usePurchaseCheckout } from "./purchase-drawer/usePurchaseCheckout";
 import type { FsPlan } from "../../../../shared/types";
 
 interface PurchaseDrawerProps {
@@ -80,44 +75,10 @@ export default function PurchaseDrawer({ open, onOpenChange, initialPlanId, init
   const defaultDay = planDays[0] ?? 7;
   const [drawerDays, setDrawerDays] = useState<number>(parsed.days ?? defaultDay);
   const [drawerGb, setDrawerGb] = useState<string | null>(parsed.gb ?? null);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const [refundConsented, setRefundConsented] = useState(false);
-  const [refundConsentError, setRefundConsentError] = useState(false);
-  const [termsConsented, setTermsConsented] = useState(false);
-  const [privacyConsented, setPrivacyConsented] = useState(false);
-  const [marketingConsented, setMarketingConsented] = useState(false);
-  const [termsConsentError, setTermsConsentError] = useState(false);
-  const [privacyConsentError, setPrivacyConsentError] = useState(false);
   const [esimOrderId, setEsimOrderId] = useState<string | undefined>(initialOrderId);
 
-  const [currency, setCurrency] = useState<string>("JPY");
-  const AVAILABLE_CURRENCIES = ["JPY", "USD", "EUR", "TWD", "KRW", "THB", "SGD", "GBP", "CNY"];
-
-  // Currency rates
-  const ratesQuery = useMemo(
-    () => query(collection(getFirebaseDb(), "currency_rates"), orderBy("updatedAt", "desc"), limit(1)),
-    []
-  );
-  const { data: ratesData } = useFirestoreCollection<{ id: string; rates: Record<string, number>; updatedAt: number }>(
-    () => ratesQuery,
-    [ratesQuery],
-    { realtime: false }
-  );
-  const rates = ratesData[0]?.rates ?? null;
-
-  const formatPrice = (priceJpy: number) => {
-    if (currency === "JPY" || !rates || !rates[currency]) {
-      return `¥${priceJpy.toLocaleString()}`;
-    }
-    const rate = rates[currency];
-    const converted = priceJpy * rate;
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: currency,
-      maximumFractionDigits: ["KRW", "TWD"].includes(currency) ? 0 : 2,
-    }).format(converted);
-  };
+  // 通貨選択・価格フォーマット（レート購読を含む）
+  const { currency, setCurrency, AVAILABLE_CURRENCIES, formatPrice } = useCurrency();
 
   // initialOrderIdが変わったら同期
   useEffect(() => {
@@ -144,15 +105,6 @@ export default function PurchaseDrawer({ open, onOpenChange, initialPlanId, init
     { realtime: true, enabled: isAuthenticated && step === 6 && esimOrderId !== undefined && esimQuery !== null }
   );
   const esimLink = esimLinks[0] ?? null;
-
-  const initCheckout = useCallableMutation<{
-    bappyPlanId: string;
-    origin: string;
-    termsConsented: boolean;
-    privacyConsented: boolean;
-    marketingConsented: boolean;
-    timezone?: string;
-  }, { checkoutUrl: string; orderId: string }>(CALLABLE.ordersInitCheckout);
 
   // 過去の注文を取得（リピーター用）
   const lastOrderQuery = useMemo(
@@ -210,61 +162,17 @@ export default function PurchaseDrawer({ open, onOpenChange, initialPlanId, init
     ? (planOptions[drawerDays] ?? []).find((o: PlanOption) => o.gb === drawerGb)
     : null;
 
-  // Callable を用いた注文作成＋決済URL取得に復帰（BaaSネイティブはトップアップと二重実行リスク解消のため廃止）
-  const handlePurchase = useCallback(async () => {
-    if (!currentOpt || !user) return;
-    let hasError = false;
-    if (!termsConsented) { setTermsConsentError(true); hasError = true; }
-    if (!privacyConsented) { setPrivacyConsentError(true); hasError = true; }
-    if (!refundConsented) { setRefundConsentError(true); hasError = true; }
-    if (hasError) return;
-
-    setPurchaseError(null);
-    setIsPurchasing(true);
-
-    try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const res = await initCheckout.mutateAsync({
-        bappyPlanId: currentOpt.bappyPlanId || currentOpt.planId,
-        origin: window.location.origin,
-        termsConsented,
-        privacyConsented,
-        marketingConsented,
-        timezone,
-      });
-
-      if (res.checkoutUrl) {
-        window.location.href = res.checkoutUrl;
-      } else {
-        setPurchaseError(t("drawer.paymentError", "Payment initialization failed. Please try again."));
-        setIsPurchasing(false);
-      }
-    } catch (err: any) {
-      if (err?.code === "permission-denied" || err?.message?.includes("permission-denied")) {
-        // Verify if the email is actually allowed
-        try {
-          if (user?.email) {
-            const emailDoc = await getDoc(doc(getFirebaseDb(), "allowed_emails", user.email.toLowerCase()));
-            if (emailDoc.exists()) {
-              // Email is registered, so the permission denied must be a different system rule failure
-              setPurchaseError(t("drawer.systemError", "A system error occurred. Please try again or contact support."));
-            } else {
-              // Email is actually not registered
-              setPurchaseError(t("drawer.emailNotAllowed", "Pre-registration is required to purchase. Please contact us via contact form or chat."));
-            }
-          } else {
-            setPurchaseError(t("drawer.emailNotAllowed", "Pre-registration is required to purchase. Please contact us via contact form or chat."));
-          }
-        } catch (checkErr) {
-          setPurchaseError(t("drawer.systemError", "A system error occurred. Please try again or contact support."));
-        }
-      } else {
-        setPurchaseError(t("drawer.systemError", "A system error occurred. Please try again or contact support."));
-      }
-      setIsPurchasing(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentOpt, user, termsConsented, privacyConsented, refundConsented, marketingConsented, t]);
+  // 同意状態＋決済処理（ordersInitCheckout→リダイレクト）を集約
+  const {
+    termsConsented, setTermsConsented,
+    privacyConsented, setPrivacyConsented,
+    marketingConsented, setMarketingConsented,
+    refundConsented, setRefundConsented,
+    termsConsentError, setTermsConsentError,
+    privacyConsentError, setPrivacyConsentError,
+    refundConsentError, setRefundConsentError,
+    purchaseError, isPurchasing, handlePurchase,
+  } = usePurchaseCheckout(currentOpt ?? null, user);
 
   return (
     <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom">
