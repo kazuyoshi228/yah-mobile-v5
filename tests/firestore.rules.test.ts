@@ -163,6 +163,14 @@ describe("esim_links", () => {
   });
 });
 
+// ─── rate_limits ──────────────────────────────────────────────────────────────
+describe("rate_limits", () => {
+  it("クライアントからは読み書きできない（Cloud Functions 専用）", async () => {
+    await assertFails(getDoc(doc(alice(), "rate_limits/checkout:alice")));
+    await assertFails(setDoc(doc(alice(), "rate_limits/checkout:alice"), { count: 0 }));
+  });
+});
+
 // ─── default deny ─────────────────────────────────────────────────────────────
 describe("default deny", () => {
   it("ルール未定義のコレクションは読み書きできない", async () => {

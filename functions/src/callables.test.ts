@@ -63,6 +63,8 @@ vi.mock("./db", () => {
 
 vi.mock("./llm", () => ({ invokeLLM: vi.fn() }));
 vi.mock("./esimRetryService", () => ({ processPendingRetries: vi.fn() }));
+// レート制限は本テストの対象外（rateLimit.test.ts で検証）。ここでは無効化する。
+vi.mock("./rateLimit", () => ({ enforceRateLimit: vi.fn() }));
 
 const mockCreateCheckoutSession = vi.fn();
 vi.mock("./stripe", () => ({

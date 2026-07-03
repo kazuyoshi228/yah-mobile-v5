@@ -191,6 +191,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ─── rate_limits (Cloud Functions only) ──────────────────────────────────────
+    match /rate_limits/{key} {
+      allow read, write: if false;
+    }
+
 
 
     // ─── Default: deny all unmatched paths ───────────────────────────────────────

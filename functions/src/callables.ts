@@ -16,6 +16,7 @@ import {
 import { invokeLLM } from "./llm";
 import { processPendingRetries } from "./esimRetryService";
 import { createCheckoutSession, validateOrigin } from "./stripe";
+import { enforceRateLimit } from "./rateLimit";
 
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
@@ -73,7 +74,9 @@ interface AnalyticsEventDoc {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export const analyticsGetAiInsights = onCall({ region: REGION, timeoutSeconds: 120, secrets: [forgeApiKey] }, async (request) => {
-  await requireAdmin(request);
+  const { uid } = await requireAdmin(request);
+  // LLM課金の暴走防止: 管理者UID単位で1時間20回まで
+  await enforceRateLimit(`aiinsights:${uid}`, 20, 3600);
   const parsed = GetAiInsightsInput.safeParse(request.data ?? {});
   if (!parsed.success) throw zodError(parsed.error.message);
   const period = parsed.data.period;
@@ -404,6 +407,8 @@ export const ordersInitCheckout = onCall(
   async (request) => {
     // 1. 認証チェック（ログイン必須 + メールホワイトリスト検証済み）
     const { uid, user } = await requireAuth(request);
+    // クレカマスター/クラウド破産対策: UID単位で1時間10回まで
+    await enforceRateLimit(`checkout:${uid}`, 10, 3600);
     const userEmail = user.email ?? "";
     const userName = user.name ?? "";
 
@@ -506,6 +511,8 @@ export const ordersInitTopupCheckout = onCall(
   },
   async (request) => {
     const { uid, user } = await requireAuth(request);
+    // クレカマスター/クラウド破産対策: UID単位で1時間10回まで
+    await enforceRateLimit(`topup:${uid}`, 10, 3600);
     const userEmail = user.email ?? "";
     const userName = user.name ?? "";
 

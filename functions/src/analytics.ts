@@ -2,6 +2,7 @@ import * as logger from "firebase-functions/logger";
 import { onRequest } from "firebase-functions/v2/https";
 import { collections } from "./db";
 import { ENV } from "./env";
+import { enforceRateLimit } from "./rateLimit";
 
 function stripPii(urlStr: string | null | undefined): string | null {
   if (!urlStr) return null;
@@ -32,6 +33,20 @@ export const analyticsEvents = onRequest(
     if (req.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method Not Allowed" });
       return;
+    }
+
+    // IPベースのレート制限（無認証エンドポイントのスパム/課金攻撃対策）
+    const rawIp = (req.headers["x-forwarded-for"] as string | undefined) || req.ip || "unknown";
+    const ip = rawIp.split(",")[0].trim();
+    try {
+      await enforceRateLimit(`analytics:${ip}`, 120, 60); // 1分あたり120バッチまで
+    } catch (e: unknown) {
+      if ((e as { code?: string })?.code === "resource-exhausted") {
+        res.status(429).json({ ok: false, error: "rate-limited" });
+        return;
+      }
+      // レート制限器自体のエラーでは analytics を止めない（fail-open）
+      logger.warn("[analyticsEvents] rate limiter error, allowing request:", e);
     }
 
     try {
