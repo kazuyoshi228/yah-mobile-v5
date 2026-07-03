@@ -7,6 +7,7 @@
  *   Firebase が保持する ID Token を tRPC 呼び出しの `Authorization: Bearer` に載せる。
  */
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -37,9 +38,37 @@ let auth: Auth;
 let firestoreDb: Firestore;
 let storageInstance: FirebaseStorage;
 
+let appCheckInitialized = false;
+/**
+ * App Check を一度だけ初期化する（reCAPTCHA Enterprise）。
+ * VITE_RECAPTCHA_ENTERPRISE_SITE_KEY が未設定の場合は初期化しない
+ * （キー未配布の環境で画面を壊さないため。サーバー強制前は無害）。
+ */
+function initAppCheckOnce(app: FirebaseApp): void {
+  if (appCheckInitialized) return;
+  appCheckInitialized = true;
+  const siteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY as string | undefined;
+  if (!siteKey) return;
+  // ローカル開発ではデバッグトークンを使う（Console で登録して許可する）
+  if (import.meta.env.DEV) {
+    (self as unknown as Record<string, unknown>).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (e) {
+    // 二重初期化など。動作は継続する。
+    console.warn("[AppCheck] init skipped:", e);
+  }
+}
+
 export function getFirebaseApp(): FirebaseApp {
-  if (getApps().length > 0) return getApps()[0];
-  return initializeApp(buildFirebaseConfig());
+  const existing = getApps();
+  const app = existing.length > 0 ? existing[0] : initializeApp(buildFirebaseConfig());
+  initAppCheckOnce(app);
+  return app;
 }
 
 export function getFirebaseAuth(): Auth {

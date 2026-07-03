@@ -73,7 +73,7 @@ interface AnalyticsEventDoc {
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
-export const analyticsGetAiInsights = onCall({ region: REGION, timeoutSeconds: 120, secrets: [forgeApiKey] }, async (request) => {
+export const analyticsGetAiInsights = onCall({ region: REGION, enforceAppCheck: true, timeoutSeconds: 120, secrets: [forgeApiKey] }, async (request) => {
   const { uid } = await requireAdmin(request);
   // LLM課金の暴走防止: 管理者UID単位で1時間20回まで
   await enforceRateLimit(`aiinsights:${uid}`, 20, 3600);
@@ -171,7 +171,7 @@ yah.mobile Analytics Summary (${period}):
 
 // ─── Incident (Read APIs Removed: pure BaaS) ──────────────────────────────────
 
-export const incidentRunRetryNow = onCall({ region: REGION, secrets: [gmailUser, gmailPass, forgeApiKey, slackWebhookUrl] }, async (request) => {
+export const incidentRunRetryNow = onCall({ region: REGION, enforceAppCheck: true, secrets: [gmailUser, gmailPass, forgeApiKey, slackWebhookUrl] }, async (request) => {
   await requireAdmin(request);
   const result = await processPendingRetries();
   return { success: true, ...result };
@@ -181,7 +181,7 @@ export const incidentRunRetryNow = onCall({ region: REGION, secrets: [gmailUser,
 // plans / competitorPlans に残る文字列 "true"/"false" の isActive・isHighlight を
 // boolean に正規化する（管理者専用・冪等）。移行完了後はこの関数を削除してよい。
 // Cloud Functions は Admin SDK 権限で動くため、サービスアカウント鍵は不要。
-export const adminMigrateIsActiveToBoolean = onCall({ region: REGION }, async (request) => {
+export const adminMigrateIsActiveToBoolean = onCall({ region: REGION, enforceAppCheck: true }, async (request) => {
   await requireAdmin(request);
 
   const toBool = (v: unknown): boolean | undefined => {
@@ -249,6 +249,7 @@ export const adminMigrateIsActiveToBoolean = onCall({ region: REGION }, async (r
 export const orderRetryPayment = onCall(
   {
     region: REGION,
+    enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [stripeSecretKey, stripeWebhookSecret],
   },
@@ -317,7 +318,7 @@ export const orderRetryPayment = onCall(
 
 
 
-export const submitContactInquiry = onCall({ region: REGION }, async (request) => {
+export const submitContactInquiry = onCall({ region: REGION, enforceAppCheck: true }, async (request) => {
   logger.info("[Contact] Start parsing input");
   const parsed = SubmitContactInquiryInput.safeParse(request.data ?? {});
   if (!parsed.success) {
@@ -401,6 +402,7 @@ export const submitContactInquiry = onCall({ region: REGION }, async (request) =
 export const ordersInitCheckout = onCall(
   {
     region: REGION,
+    enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [stripeSecretKey, stripeWebhookSecret],
   },
@@ -506,6 +508,7 @@ export const ordersInitCheckout = onCall(
 export const ordersInitTopupCheckout = onCall(
   {
     region: REGION,
+    enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [stripeSecretKey, stripeWebhookSecret, omaxClientId, omaxClientSecret],
   },
