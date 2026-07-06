@@ -5,7 +5,8 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const pwaPlugin = VitePWA({
-  registerType: "autoUpdate",
+  // prompt: 新バージョンを検知したら更新バナーで促す（開いたままのページが古いまま取り残されない）
+  registerType: "prompt",
   injectRegister: 'auto',
   includeAssets: [],
   manifest: false, // manifest.jsonはスタティックファイルとして提供

@@ -27,7 +27,10 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
   const { orderId } = params;
   const { user, isAuthenticated, loading } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ synced: boolean; isMock?: boolean } | null>(null);
+  const [syncMsg, setSyncMsg] = useState<null | "timeout" | "error">(null);
+  const syncBaselineRef = useRef<number | null>(null);
+  const settleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const device = detectDevice();
 
@@ -67,8 +70,17 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
   }, [order]);
 
   const handleSync = useCallback(async () => {
-    if (!esimLink?.id) return;
+    if (!esimLink?.id || isSyncing) return;
+    // 同期完了の判定基準：現在の updatedAt。トリガーが Bappy から取得して updatedAt を進めるまで待つ。
+    syncBaselineRef.current = esimLink.updatedAt ?? 0;
+    setSyncMsg(null);
     setIsSyncing(true);
+    if (hardTimeoutRef.current) clearTimeout(hardTimeoutRef.current);
+    hardTimeoutRef.current = setTimeout(() => {
+      if (settleRef.current) clearTimeout(settleRef.current);
+      setIsSyncing(false);
+      setSyncMsg("timeout");
+    }, 15000);
     try {
       // Rules は syncRequestedAt / updatedAt == request.time（Timestamp）を要求するため
       // クライアント時刻ではなく serverTimestamp() を使う（両方必須）
@@ -76,13 +88,31 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
         syncRequestedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      setSyncResult({ synced: true });
     } catch (err) {
       console.error("[handleSync] Failed to request eSIM sync:", err);
-    } finally {
+      if (hardTimeoutRef.current) clearTimeout(hardTimeoutRef.current);
       setIsSyncing(false);
+      setSyncMsg("error");
     }
-  }, [esimLink?.id]);
+  }, [esimLink?.id, esimLink?.updatedAt, isSyncing]);
+
+  // updatedAt が基準を越えたら（＝onSnapshot で新データ到着）、少し待って（完了書き込みを拾って）Syncing を解除
+  useEffect(() => {
+    if (!isSyncing) return;
+    const cur = esimLink?.updatedAt ?? null;
+    const base = syncBaselineRef.current;
+    if (cur == null || base == null || cur <= base) return;
+    if (settleRef.current) clearTimeout(settleRef.current);
+    settleRef.current = setTimeout(() => {
+      if (hardTimeoutRef.current) clearTimeout(hardTimeoutRef.current);
+      setIsSyncing(false);
+    }, 2500);
+  }, [esimLink?.updatedAt, isSyncing]);
+
+  useEffect(() => () => {
+    if (settleRef.current) clearTimeout(settleRef.current);
+    if (hardTimeoutRef.current) clearTimeout(hardTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     if (order?.status === "fulfilled") {
@@ -211,8 +241,17 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
                       className="font-sans mt-4 text-xs text-black/40 hover:text-black transition-colors duration-200 flex items-center gap-1.5 disabled:opacity-40"
                     >
                       {isSyncing ? <Spinner className="size-3" /> : "↻"}
-                      {isSyncing ? "Syncing…" : syncResult?.isMock ? "Synced (mock)" : "Refresh data usage"}
+                      {isSyncing ? "Syncing…" : "Refresh data usage"}
                     </button>
+                    <p className="font-sans text-black/30 text-[0.65rem] mt-1">
+                      {syncMsg === "timeout"
+                        ? "Still syncing — usage can take a few minutes to update."
+                        : syncMsg === "error"
+                          ? "Couldn't refresh. Please reload the app and try again."
+                          : esimLink.updatedAt
+                            ? `Last updated ${new Date(esimLink.updatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`
+                            : ""}
+                    </p>
                   </div>
                 )}
 

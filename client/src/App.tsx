@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AppPage from "./pages/AppPage";
 import CookieBanner from "./components/CookieBanner";
+import { PwaUpdatePrompt } from "./components/PwaUpdatePrompt";
 import LoginPage from "./pages/LoginPage";
 
 // 遅延ロード：初期表示に不要なページ（ログイン後・管理者・法的ページ）
@@ -76,6 +77,7 @@ function App() {
           <Toaster />
           <I18nRouter />
           <CookieBanner />
+          <PwaUpdatePrompt />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
