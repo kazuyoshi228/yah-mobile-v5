@@ -46,6 +46,8 @@ yah.mobile（日本旅行者向け eSIM 販売サイト）。フロント React 
 ## ビルド / 環境
 
 - **Node 22 必須**（Vitest 4 / Vite 7）。ローカルは `~/node22/bin` を PATH に追加済み（`~/.zshrc` に恒久化）。
+- **依存管理は pnpm**（ルート `packageManager: pnpm@10.4.1`）。パッケージ追加は **`pnpm add <pkg>`**。🚨 **`npm install`/`npm add` は node_modules（`.pnpm` レイアウト）と衝突して失敗するため使わない**（スクリプト実行 `npm run build` 等は可）。corepack が署名検証で失敗する場合は直下の pnpm（`~/node-lts/bin/pnpm`）で `--config.package-manager-strict=false` を付ける。
+- **`functions/` は別プロジェクトで npm 管理**（独自 `package-lock.json`）。functions の依存は `functions/` 内で `npm install` / `npm uninstall`、ビルドは `npm run build`（tsc）、テストは `npm test`。
 - Firestore エミュレータ用に Java（`~/jdk21`）を使用。
 - ビルド：`npm run build`（出力 `dist/public`）。Hosting の public は `dist/public`。
 - 型チェック：`npx tsc --noEmit -p tsconfig.json`

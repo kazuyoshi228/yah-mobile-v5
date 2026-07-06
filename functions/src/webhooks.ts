@@ -20,7 +20,6 @@ import {
   getOrderByStripeSessionId,
   updateOrder,
   getEsimLinkByOrderId,
-  updateEsimLink,
   getUserByUid,
   collections,
   db,
@@ -30,7 +29,6 @@ import {
 } from "./db";
 import { createLink, addTopupPlan } from "./bappy";
 import { sendEmail, buildEsimReadyEmail } from "./mailer";
-import { generateAndStoreQrCode } from "./qrStorage";
 import { handleProvisioningFailure } from "./esimRetryService";
 export const stripeWebhook = onRequest(
   {
@@ -231,24 +229,12 @@ async function fulfillEsim(orderData: FsOrder) {
         dataTotalMb: link.dataTotalMb ?? null,
         expiryDate: link.expiryDate ?? null,
         status: "active",
-        qrCodeUrl: null,
         planId: planDoc?.id ?? null,
         planName: planData?.name ?? null,
         totalDataGb: planData?.dataGb ?? null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-
-      generateAndStoreQrCode(orderId, link.lpaProfile)
-        .then(async (qrCodeUrl) => {
-          if (qrCodeUrl) {
-            await updateEsimLink(link.uuid, { qrCodeUrl });
-            logger.info(`[fulfillEsim] QR code stored for order: ${orderId}`);
-          }
-        })
-        .catch((err: unknown) =>
-          logger.error(`[fulfillEsim] QR code generation failed for order ${orderId}:`, err)
-        );
     }
 
     await updateOrder(orderId, { status: "fulfilled", esimLinkUuid: linkUuid });

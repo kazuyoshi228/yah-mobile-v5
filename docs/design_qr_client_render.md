@@ -79,3 +79,10 @@ Phase 2（`functions`/`qrStorage.ts` 等の不要コード削除）は、Phase 1
 - 新規 `client/src/components/EsimQr.tsx`（`<QRCodeSVG value size level marginSize>`）＋ `EsimQr.test.tsx`（SVG生成・value依存の2ケース）。
 - `Step6Esim.tsx` / `OrderDetailPage.tsx`：`<img src={qrCodeUrl}>` → `EsimQr value={esimLink.lpaProfile}` に置換。フロントの `qrCodeUrl` 依存を完全撤去。
 - 検証：型チェック・EsimQrテスト・build 通過。※実際のQR表示は lpaProfile を持つ注文が必要（ロジックは単体テストで担保）。
+
+## 実装記録（Phase 2・2026-07-06 完了・ユーザー承認済み）
+- `functions/src/webhooks.ts`：`generateAndStoreQrCode` の import・呼び出しブロック・`qrCodeUrl: null` 書き込みを削除。未使用になった `updateEsimLink` import も除去。
+- `functions/src/qrStorage.ts` / `qrStorage.test.ts` を削除。`functions/src/webhooks.test.ts` の `qrStorage` mock も除去。
+- `functions/package.json` から `qrcode` / `@types/qrcode` を除去（`npm uninstall`、functions は npm 管理）。
+- 検証：functions `npm run build`（tsc）通過・`npm test` 34件通過。
+- ⚠️ **functions は共有デプロイ（本番）でチャンネルが無いため、本番反映は別途ユーザー指示で `firebase deploy --only functions`**。未デプロイでも害なし（フロントは既に qrCodeUrl 非依存）。既存 Storage `qrcodes/*.png` は孤児化するが無害。

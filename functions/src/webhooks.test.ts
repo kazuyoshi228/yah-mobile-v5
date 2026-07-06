@@ -50,7 +50,6 @@ vi.mock("./db", () => {
 
 vi.mock("./bappy", () => ({ createLink: vi.fn(), addTopupPlan: vi.fn() }));
 vi.mock("./mailer", () => ({ sendEmail: vi.fn(), buildEsimReadyEmail: vi.fn() }));
-vi.mock("./qrStorage", () => ({ generateAndStoreQrCode: vi.fn() }));
 vi.mock("./esimRetryService", () => ({ handleProvisioningFailure: vi.fn() }));
 
 // --- Import ---
