@@ -15,6 +15,7 @@ build/
 
 # Debug logs
 *.txt
+!client/public/robots.txt
 .manus-logs/
 .env.production.local
 

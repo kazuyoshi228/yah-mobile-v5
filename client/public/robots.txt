@@ -1,0 +1,33 @@
+# robots.txt — yah.mobile
+# https://yah.mobi
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /mypage
+
+# AI Crawlers — explicitly welcome
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Sitemap
+Sitemap: https://yah.mobi/sitemap.xml
+
+# LLMs.txt — machine-readable service description for AI agents
+# https://yah.mobi/llms.txt
