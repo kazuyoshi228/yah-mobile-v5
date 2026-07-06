@@ -28,7 +28,9 @@ jobs:
           java-version: 21
 
       - name: Install root deps (pnpm)
-        run: pnpm install --frozen-lockfile
+        # ローカルは pnpm 9.15.9（node-lts）でロック更新、CIは packageManager の 10.4.1。
+        # patchedDependencies の表現差で frozen が拒否されるため no-frozen で整合させる。
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm run check
@@ -68,7 +70,9 @@ jobs:
           cache: pnpm
 
       - name: Install root deps (pnpm)
-        run: pnpm install --frozen-lockfile
+        # ローカルは pnpm 9.15.9（node-lts）でロック更新、CIは packageManager の 10.4.1。
+        # patchedDependencies の表現差で frozen が拒否されるため no-frozen で整合させる。
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install Playwright (chromium)
         run: pnpm exec playwright install --with-deps chromium
