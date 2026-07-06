@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { bappyWebhook } from "./webhooks_bappy";
 import * as db from "./db";
+import * as notify from "./adapters/notify";
+
+// Mock ./adapters/notify（障害時のオーナー通知を検証するため）
+vi.mock("./adapters/notify", () => ({
+  notifyOwner: vi.fn(),
+}));
 
 // Mock ./db
 vi.mock("./db", () => {
@@ -95,10 +101,24 @@ describe("bappyWebhook", () => {
     (db.updateEsimLink as any).mockRejectedValue(new Error("DB Error"));
     const req = mockReq("POST", { bappyLinkUuid: "link_123" });
     const res = mockRes();
-    
+
     await bappyWebhook(req, res);
-    
+
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.send).toHaveBeenCalledWith("Internal server error");
+  });
+
+  it("should notify the owner when processing fails (24222b2)", async () => {
+    (db.updateEsimLink as any).mockRejectedValue(new Error("DB Error"));
+    const req = mockReq("POST", { bappyLinkUuid: "link_123" });
+    const res = mockRes();
+
+    await bappyWebhook(req, res);
+
+    expect(notify.notifyOwner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining("Bappy Webhook"),
+      })
+    );
   });
 });

@@ -28,7 +28,7 @@ import {
   incrementSystemStats,
 } from "./db";
 import { createLink, addTopupPlan } from "./bappy";
-import { sendEmail, buildEsimReadyEmail } from "./mailer";
+import { sendEmail, buildEsimReadyEmail, buildPurchaseReceivedEmail } from "./mailer";
 import { handleProvisioningFailure } from "./esimRetryService";
 export const stripeWebhook = onRequest(
   {
@@ -182,6 +182,14 @@ async function handleCheckoutCompleted(session: Record<string, unknown>) {
   }
 
   logger.info(`[handleCheckoutCompleted] Order ${order.id} marked as paid, starting eSIM fulfillment`);
+
+  // 購入受付メール（発行前・即時）。失敗しても発行処理は継続する。
+  if (userEmail) {
+    const receivedEmail = buildPurchaseReceivedEmail({ orderId: order.id! });
+    await sendEmail({ to: userEmail, ...receivedEmail }).catch((err: unknown) =>
+      logger.error(`[handleCheckoutCompleted] Failed to send purchase-received email for order ${order.id}:`, err),
+    );
+  }
 
   await fulfillEsim(order);
 }

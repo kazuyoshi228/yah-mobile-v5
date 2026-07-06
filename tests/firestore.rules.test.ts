@@ -186,6 +186,25 @@ describe("orders", () => {
     await assertFails(updateDoc(doc(alice(), "orders/o1"), { status: "fulfilled" }));
     await assertFails(updateDoc(doc(alice(), "orders/o1"), { amountJpy: 1, updatedAt: serverTimestamp() }));
   });
+
+  it("他人は他ユーザーの注文を更新できない（IDOR・hiddenByUser でも不可）", async () => {
+    await seed("orders/o1", { userId: "alice", amountJpy: 990, status: "paid", hiddenByUser: false });
+    await assertFails(updateDoc(doc(bob(), "orders/o1"), { hiddenByUser: true, updatedAt: serverTimestamp() }));
+  });
+
+  it("他人名義の注文を自分が作成できない（なりすまし作成の防止）", async () => {
+    await assertFails(setDoc(doc(bob(), "orders/o3"), { userId: "alice", amountJpy: 990, status: "pending", hiddenByUser: false }));
+  });
+
+  it("他人は他ユーザーの注文を削除できない", async () => {
+    await seed("orders/o1", { userId: "alice", amountJpy: 990, status: "paid", hiddenByUser: false });
+    await assertFails(deleteDoc(doc(bob(), "orders/o1")));
+  });
+
+  it("本人でも注文を削除できない（Cloud Functions 専用）", async () => {
+    await seed("orders/o1", { userId: "alice", amountJpy: 990, status: "paid", hiddenByUser: false });
+    await assertFails(deleteDoc(doc(alice(), "orders/o1")));
+  });
 });
 
 // ─── esim_links ───────────────────────────────────────────────────────────────

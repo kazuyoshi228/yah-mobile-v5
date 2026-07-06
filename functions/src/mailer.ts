@@ -175,6 +175,46 @@ export function buildEsimFailedEmail(opts: { orderId: string }): { subject: stri
 }
 
 /**
+ * 購入受付メール（決済完了直後・eSIM発行前に送信）。
+ * eSIMの発行完了は別途 buildEsimReadyEmail で通知する（2通体制）。
+ */
+export function buildPurchaseReceivedEmail(opts: { orderId: string }): { subject: string; html: string } {
+  const subject = "【yah.mobile】ご注文を受け付けました";
+  const html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f8f8; margin: 0; padding: 20px;">
+  <div style="max-width: 560px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0;">
+    <div style="background: #000; padding: 24px 32px;">
+      <h1 style="color: #fff; font-size: 20px; margin: 0; letter-spacing: 0.05em;">yah.mobile</h1>
+    </div>
+    <div style="padding: 32px;">
+      <h2 style="font-size: 18px; color: #111; margin: 0 0 16px;">ご注文を受け付けました ✓</h2>
+      <p style="color: #555; font-size: 14px; line-height: 1.7; margin: 0 0 16px;">
+        ご購入ありがとうございます。お支払いを確認しました。<br>
+        現在eSIMを準備しています。発行が完了しましたら、あらためてご案内メールをお送りします。
+      </p>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 0 0 24px;">
+        <p style="color: #334155; font-size: 13px; margin: 0;">
+          🧾 注文番号 #${opts.orderId} を受け付けました。
+        </p>
+      </div>
+      <a href="https://yah.mobi/mypage" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 4px; font-size: 14px; font-weight: 500;">
+        マイページで状況を確認する
+      </a>
+      <p style="color: #aaa; font-size: 12px; margin: 24px 0 0; line-height: 1.6;">
+        このメールはyah.mobileからの自動送信です。<br>
+        ご不明な点は <a href="https://yah.mobi/app#contact" style="color: #555;">サポートページ</a> よりお問い合わせください。
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+  return { subject, html };
+}
+
+/**
  * eSIM発行完了メール（復旧成功）
  */
 export function buildEsimReadyEmail(opts: { orderId: string }): { subject: string; html: string } {
